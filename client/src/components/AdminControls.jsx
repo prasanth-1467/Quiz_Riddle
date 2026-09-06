@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { ToggleLeft, ToggleRight, PlusCircle, RefreshCw, Layers } from 'lucide-react';
+import { SocketContext } from '../context/SocketContext';
 
 export const AdminControls = () => {
   const [eventState, setEventState] = useState({ isRoundOpen: true, isLeaderboardFrozen: false });
@@ -15,6 +16,9 @@ export const AdminControls = () => {
     points: 10,
   });
   const [msg, setMsg] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const { socket } = useContext(SocketContext);
 
   const fetchState = async () => {
     try {
@@ -29,7 +33,24 @@ export const AdminControls = () => {
 
   useEffect(() => {
     fetchState();
+    fetchQuestions();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const handleStateUpdate = (updatedState) => setEventState(updatedState);
+    socket.on('eventState:update', handleStateUpdate);
+    return () => socket.off('eventState:update', handleStateUpdate);
+  }, [socket]);
+
+  const fetchQuestions = async () => {
+    try {
+      const res = await axios.get('/api/questions');
+      setQuestions(res.data.questions || []);
+    } catch (error) {
+      console.error('Error loading questions', error);
+    }
+  };
 
   const handleToggleState = async (field, currentValue) => {
     try {
@@ -49,16 +70,23 @@ export const AdminControls = () => {
         ? newQuestion.options.split(',').map((opt) => opt.trim())
         : [];
 
-      await axios.post('/api/questions', {
+      const questionData = {
         ...newQuestion,
         order: Number(newQuestion.order),
         points: Number(newQuestion.points),
         options: formattedOptions,
-      });
+      };
+      if (editingQuestionId) {
+        await axios.put(`/api/questions/${editingQuestionId}`, questionData);
+      } else {
+        await axios.post('/api/questions', questionData);
+      }
 
-      setMsg('✅ Question created successfully!');
+      setMsg(editingQuestionId ? 'Question updated successfully!' : 'Question created successfully!');
+      setEditingQuestionId(null);
+      await fetchQuestions();
       setNewQuestion({
-        order: newQuestion.order + 1,
+        order: Number(newQuestion.order) + 1,
         title: '',
         description: '',
         type: 'RIDDLE',
@@ -68,6 +96,30 @@ export const AdminControls = () => {
       });
     } catch (error) {
       setMsg(`❌ ${error.response?.data?.message || 'Error creating question'}`);
+    }
+  };
+
+  const handleEditQuestion = (question) => {
+    setEditingQuestionId(question._id);
+    setNewQuestion({
+      order: question.order,
+      title: question.title,
+      description: question.description,
+      type: question.type,
+      options: question.options?.join(', ') || '',
+      correctAnswer: question.correctAnswer,
+      points: question.points,
+    });
+    setMsg('Editing selected question');
+  };
+
+  const handleDeleteQuestion = async (questionId) => {
+    try {
+      await axios.delete(`/api/questions/${questionId}`);
+      setQuestions((currentQuestions) => currentQuestions.filter((question) => question._id !== questionId));
+      setMsg('Question deleted successfully!');
+    } catch (error) {
+      setMsg(`Error deleting question: ${error.response?.data?.message || 'Request failed'}`);
     }
   };
 
@@ -119,7 +171,7 @@ export const AdminControls = () => {
       {/* Question Creation Form */}
       <div className="glass-panel" style={{ padding: '1.5rem' }}>
         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <PlusCircle color="#10b981" size={20} /> Add New Question
+          <PlusCircle color="#10b981" size={20} /> {editingQuestionId ? 'Edit Question' : 'Add New Question'}
         </h3>
 
         {msg && <p style={{ marginBottom: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>{msg}</p>}
@@ -210,9 +262,44 @@ export const AdminControls = () => {
           )}
 
           <button type="submit" className="btn btn-primary">
-            Publish Question
+            {editingQuestionId ? 'Save Question' : 'Publish Question'}
           </button>
+          {editingQuestionId && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginLeft: '0.75rem' }}
+              onClick={() => {
+                setEditingQuestionId(null);
+                setMsg('');
+              }}
+            >
+              Cancel
+            </button>
+          )}
         </form>
+      </div>
+
+      <div className="glass-panel" style={{ padding: '1.5rem', gridColumn: '1 / -1' }}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem' }}>Question Bank</h3>
+        {questions.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)' }}>No questions created yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {questions.map((question) => (
+              <div key={question._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem' }}>
+                <div>
+                  <strong>Q{question.order}: {question.title}</strong>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{question.type} · {question.points} points</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => handleEditQuestion(question)}>Edit</button>
+                  <button type="button" className="btn btn-secondary" onClick={() => handleDeleteQuestion(question._id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

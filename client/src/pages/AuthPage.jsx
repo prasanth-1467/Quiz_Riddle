@@ -13,9 +13,18 @@ export const AuthPage = () => {
 
   const { login, register } = useContext(AuthContext);
 
+  const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim())
+    && value.trim() === value.trim().toLowerCase();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+
+    if (!isValidEmail(email)) {
+      setErrorMsg('Email address must be lowercase and in a valid format');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -75,6 +84,8 @@ export const AuthPage = () => {
               placeholder="user@domain.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onInvalid={(e) => e.target.setCustomValidity('Email address must be lowercase and in a valid format')}
+              onInput={(e) => e.target.setCustomValidity('')}
               required
             />
           </div>

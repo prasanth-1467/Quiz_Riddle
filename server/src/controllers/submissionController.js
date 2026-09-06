@@ -8,12 +8,20 @@ export const submitAnswer = async (req, res) => {
     const { questionId, answer } = req.body;
     const userId = req.user._id;
 
+    if (!questionId || typeof answer !== 'string' || !answer.trim()) {
+      return res.status(400).json({ message: 'Question and answer are required' });
+    }
+
     if (!req.user.teamId) {
       return res.status(400).json({ message: 'User must belong to a team to submit answers' });
     }
 
-    const eventState = await EventState.findOne();
-    if (eventState && !eventState.isRoundOpen) {
+    const eventState = await EventState.findOneAndUpdate(
+      { key: 'competition' },
+      { $setOnInsert: { key: 'competition', isRoundOpen: true, isLeaderboardFrozen: false } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    if (!eventState.isRoundOpen) {
       return res.status(403).json({ message: 'Submissions are currently closed for this round' });
     }
 
@@ -22,7 +30,14 @@ export const submitAnswer = async (req, res) => {
       return res.status(404).json({ message: 'Question not found' });
     }
 
+    const team = await Team.findById(req.user.teamId);
+    if (!team) return res.status(404).json({ message: 'Team not found' });
+    if (question.order !== team.currentQuestionOrder) {
+      return res.status(403).json({ message: 'This question is locked or already completed' });
+    }
+
     const isCorrect = question.correctAnswer.trim().toLowerCase() === answer.trim().toLowerCase();
+    const pointsAwarded = isCorrect ? question.points : 0;
 
     const submission = await Submission.create({
       teamId: req.user.teamId,
@@ -30,24 +45,34 @@ export const submitAnswer = async (req, res) => {
       submittedBy: userId,
       submittedAnswer: answer,
       isCorrect,
+      pointsAwarded,
       timestamp: new Date(),
     });
 
-    const team = await Team.findById(req.user.teamId);
+    const io = req.app.get('io');
+    if (io) io.emit('submission:new');
 
     if (isCorrect) {
-      team.score += question.points;
-      team.lastCorrectAt = new Date();
-      team.currentQuestionOrder += 1;
-      await team.save();
+      const updatedTeam = await Team.findOneAndUpdate(
+        { _id: team._id, currentQuestionOrder: question.order },
+        { $inc: { score: question.points, currentQuestionOrder: 1 }, $set: { lastCorrectAt: new Date() } },
+        { new: true }
+      );
+      if (!updatedTeam) {
+        await Submission.findByIdAndUpdate(submission._id, { pointsAwarded: 0 });
+        return res.status(409).json({ message: 'This question was already completed by your team' });
+      }
+      team.score = updatedTeam.score;
+      team.currentQuestionOrder = updatedTeam.currentQuestionOrder;
+      team.lastCorrectAt = updatedTeam.lastCorrectAt;
 
       // Emit socket event for real-time leaderboard update
-      const io = req.app.get('io');
       if (io) {
         const updatedLeaderboard = await Team.find()
           .select('name score lastCorrectAt currentQuestionOrder')
           .sort({ score: -1, lastCorrectAt: 1 });
         io.emit('leaderboard:update', updatedLeaderboard);
+        io.emit('question:unlock', { teamId: team._id, questionOrder: team.currentQuestionOrder });
       }
     }
 

@@ -22,14 +22,30 @@ export function App() {
     return <AuthPage />;
   }
 
+  const isAdmin = user.role === 'ADMIN';
+  const currentTab = isAdmin ? 'admin' : activeTab;
+
   return (
     <div style={{ minHeight: '100vh', paddingBottom: '3rem' }}>
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Navbar activeTab={currentTab} setActiveTab={setActiveTab} />
 
       <main>
-        {activeTab === 'arena' && <ArenaPage />}
-        {activeTab === 'lobby' && <TeamLobbyPage onTeamSuccess={() => setActiveTab('arena')} />}
-        {activeTab === 'admin' && user.role === 'ADMIN' && <AdminDashboardPage />}
+        {!isAdmin && currentTab === 'arena' && <ArenaPage />}
+        {!isAdmin && currentTab === 'lobby' && <TeamLobbyPage onTeamSuccess={() => setActiveTab('arena')} onBack={() => setActiveTab('arena')} />}
+        {isAdmin && <AdminDashboardPage />}
+        {!isAdmin && currentTab === 'admin' && (
+          <div className="container" style={{ maxWidth: '600px', marginTop: '3rem' }}>
+            <div className="glass-panel" style={{ padding: '2.5rem', textAlign: 'center' }}>
+              <h2>Access denied</h2>
+              <p style={{ color: 'var(--text-muted)', margin: '1rem 0' }}>
+                Administrative functionality is available only to authorized administrators.
+              </p>
+              <button className="btn btn-primary" onClick={() => setActiveTab('arena')}>
+                Return to Arena
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

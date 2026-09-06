@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Send, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
-export const SubmissionForm = ({ question, onSubmissionSuccess }) => {
+export const SubmissionForm = ({ question, onSubmissionSuccess, isRoundOpen = true }) => {
   const [answer, setAnswer] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
@@ -61,7 +61,7 @@ export const SubmissionForm = ({ question, onSubmissionSuccess }) => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button type="submit" className="btn btn-primary" disabled={submitting || !answer.trim()}>
+          <button type="submit" className="btn btn-primary" disabled={submitting || !answer.trim() || !isRoundOpen}>
             {submitting ? (
               <>
                 <Loader2 size={18} className="animate-spin" /> Submitting...
@@ -72,6 +72,7 @@ export const SubmissionForm = ({ question, onSubmissionSuccess }) => {
               </>
             )}
           </button>
+          {!isRoundOpen && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Round is closed</span>}
         </div>
       </form>
 

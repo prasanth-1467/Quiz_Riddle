@@ -8,6 +8,11 @@ const teamSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    mode: {
+      type: String,
+      enum: ['TEAM', 'INDIVIDUAL'],
+      default: 'TEAM',
+    },
     code: {
       type: String,
       required: true,
