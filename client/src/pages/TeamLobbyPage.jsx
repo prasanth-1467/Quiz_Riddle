@@ -6,6 +6,7 @@ import { Users, Plus, Key, CheckCircle, ArrowRight } from 'lucide-react';
 export const TeamLobbyPage = ({ onTeamSuccess }) => {
   const { user, refreshUser } = useContext(AuthContext);
   const [teamName, setTeamName] = useState('');
+  const [teammateNames, setTeammateNames] = useState(['']);
   const [teamCode, setTeamCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,10 @@ export const TeamLobbyPage = ({ onTeamSuccess }) => {
     setErrorMsg('');
 
     try {
-      await axios.post('/api/teams/create', { name: teamName.trim() });
+      await axios.post('/api/teams/create', {
+        name: teamName.trim(),
+        teammateNames: teammateNames.map((name) => name.trim()).filter(Boolean),
+      });
       await refreshUser();
       if (onTeamSuccess) onTeamSuccess();
     } catch (err) {
@@ -25,6 +29,20 @@ export const TeamLobbyPage = ({ onTeamSuccess }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateTeammateName = (index, value) => {
+    setTeammateNames((currentNames) => currentNames.map((name, nameIndex) => (
+      nameIndex === index ? value : name
+    )));
+  };
+
+  const addTeammateField = () => {
+    setTeammateNames((currentNames) => [...currentNames, '']);
+  };
+
+  const removeTeammateField = (index) => {
+    setTeammateNames((currentNames) => currentNames.filter((_, nameIndex) => nameIndex !== index));
   };
 
   const handleJoinTeam = async (e) => {
@@ -96,6 +114,38 @@ export const TeamLobbyPage = ({ onTeamSuccess }) => {
                 required
                 disabled={loading}
               />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Teammate Names</label>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '-0.35rem' }}>
+                Add the names of the teammates joining your team.
+              </p>
+              {teammateNames.map((name, index) => (
+                <div key={`teammate-${index}`} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder={`Teammate ${index + 1}`}
+                    value={name}
+                    onChange={(e) => updateTeammateName(index, e.target.value)}
+                    disabled={loading}
+                  />
+                  {teammateNames.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => removeTeammateField(index)}
+                      disabled={loading}
+                      aria-label={`Remove teammate ${index + 1}`}
+                    >
+                      -
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button type="button" className="btn btn-secondary" onClick={addTeammateField} disabled={loading}>
+                Add Teammate
+              </button>
             </div>
             <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
               Create Team

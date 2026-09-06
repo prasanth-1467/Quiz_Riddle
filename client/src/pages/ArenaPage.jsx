@@ -92,6 +92,11 @@ export const ArenaPage = () => {
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Team Code: <code style={{ color: 'var(--secondary-accent)', fontFamily: 'var(--font-mono)' }}>{teamDetails.code}</code>
                   </div>
+                  {teamDetails.teammateNames?.length > 0 && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                      Teammates: {teamDetails.teammateNames.join(', ')}
+                    </div>
+                  )}
                 </div>
               </div>
 

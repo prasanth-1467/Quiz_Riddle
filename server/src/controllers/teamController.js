@@ -13,7 +13,7 @@ const generateTeamCode = () => {
 
 export const createTeam = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, teammateNames = [] } = req.body;
     const userId = req.user._id;
 
     if (req.user.teamId) {
@@ -24,6 +24,10 @@ export const createTeam = async (req, res) => {
     if (existingTeam) {
       return res.status(400).json({ message: 'Team name is already taken' });
     }
+
+    const cleanedTeammateNames = Array.isArray(teammateNames)
+      ? teammateNames.map((teammateName) => String(teammateName).trim()).filter(Boolean)
+      : [];
 
     let code = generateTeamCode();
     let isUnique = false;
@@ -37,6 +41,7 @@ export const createTeam = async (req, res) => {
       name,
       code,
       members: [userId],
+      teammateNames: cleanedTeammateNames,
     });
 
     await User.findByIdAndUpdate(userId, { teamId: team._id });

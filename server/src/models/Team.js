@@ -21,6 +21,10 @@ const teamSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    teammateNames: {
+      type: [String],
+      default: [],
+    },
     score: {
       type: Number,
       default: 0,
