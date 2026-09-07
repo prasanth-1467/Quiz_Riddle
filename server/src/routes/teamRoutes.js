@@ -7,7 +7,7 @@ const router = express.Router();
 router.post('/create', verifyJWT, createTeam);
 router.post('/join', verifyJWT, joinTeam);
 router.post('/individual', verifyJWT, joinIndividual);
-router.get('/leaderboard', getLeaderboard);
+router.get('/leaderboard', verifyJWT, getLeaderboard);
 router.get('/:id', verifyJWT, getTeamDetails);
 
 export default router;

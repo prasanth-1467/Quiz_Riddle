@@ -42,6 +42,27 @@ const teamSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    currentRoundOrder: {
+      type: Number,
+      default: 1,
+    },
+    completedRounds: {
+      type: [Number],
+      default: [],
+    },
+    roundResults: {
+      type: [
+        {
+          roundOrder: { type: Number, required: true },
+          correctAnswers: { type: Number, required: true },
+          totalQuestions: { type: Number, required: true },
+          score: { type: Number, default: 0 },
+          passed: { type: Boolean, default: true },
+          completedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );

@@ -12,6 +12,11 @@ const submissionSchema = new mongoose.Schema(
       ref: 'Question',
       required: true,
     },
+    roundId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Round',
+      required: true,
+    },
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

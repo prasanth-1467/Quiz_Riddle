@@ -126,10 +126,21 @@ export const getTeamDetails = async (req, res) => {
 export const getLeaderboard = async (req, res) => {
   try {
     const teams = await Team.find()
-      .select('name score lastCorrectAt currentQuestionOrder')
+      .select('name score lastCorrectAt currentQuestionOrder currentRoundOrder roundResults')
       .sort({ score: -1, lastCorrectAt: 1 });
 
-    res.status(200).json({ leaderboard: teams });
+    const leaderboard = teams.map((team) => {
+      const data = team.toObject();
+      if (req.user?.role !== 'ADMIN') {
+        const latestResult = [...(data.roundResults || [])].sort(
+          (first, second) => new Date(second.completedAt) - new Date(first.completedAt)
+        )[0];
+        data.roundResults = latestResult ? [latestResult] : [];
+      }
+      return data;
+    });
+
+    res.status(200).json({ leaderboard });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching leaderboard', error: error.message });
   }
