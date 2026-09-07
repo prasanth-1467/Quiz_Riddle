@@ -7,6 +7,7 @@ export const AdminControls = () => {
   const [eventState, setEventState] = useState({ isRoundOpen: true, isLeaderboardFrozen: false });
   const [loading, setLoading] = useState(true);
   const [newQuestion, setNewQuestion] = useState({
+    roundId: '',
     order: 1,
     title: '',
     description: '',
@@ -17,6 +18,9 @@ export const AdminControls = () => {
   });
   const [msg, setMsg] = useState('');
   const [questions, setQuestions] = useState([]);
+  const [rounds, setRounds] = useState([]);
+  const [newRound, setNewRound] = useState({ title: '', order: 1, passingMark: 1, isOpen: true });
+  const [editingRoundId, setEditingRoundId] = useState(null);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const { socket } = useContext(SocketContext);
 
@@ -34,6 +38,7 @@ export const AdminControls = () => {
   useEffect(() => {
     fetchState();
     fetchQuestions();
+    fetchRounds();
   }, []);
 
   useEffect(() => {
@@ -49,6 +54,16 @@ export const AdminControls = () => {
       setQuestions(res.data.questions || []);
     } catch (error) {
       console.error('Error loading questions', error);
+    }
+  };
+
+  const fetchRounds = async () => {
+    try {
+      const res = await axios.get('/api/rounds');
+      setRounds(res.data.rounds || []);
+      if (res.data.rounds?.[0]) setNewQuestion((current) => ({ ...current, roundId: current.roundId || res.data.rounds[0]._id }));
+    } catch (error) {
+      console.error('Error loading rounds', error);
     }
   };
 
@@ -86,6 +101,7 @@ export const AdminControls = () => {
       setEditingQuestionId(null);
       await fetchQuestions();
       setNewQuestion({
+        roundId: newQuestion.roundId,
         order: Number(newQuestion.order) + 1,
         title: '',
         description: '',
@@ -99,9 +115,30 @@ export const AdminControls = () => {
     }
   };
 
+  const handleRoundSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const data = { ...newRound, order: Number(newRound.order), passingMark: Number(newRound.passingMark) };
+      if (editingRoundId) await axios.put(`/api/rounds/${editingRoundId}`, data);
+      else await axios.post('/api/rounds', data);
+      setMsg(editingRoundId ? 'Round updated successfully!' : 'Round created successfully!');
+      setEditingRoundId(null);
+      setNewRound({ title: '', order: rounds.length + 1, passingMark: 1, isOpen: true });
+      await fetchRounds();
+    } catch (error) {
+      setMsg(error.response?.data?.message || 'Error saving round');
+    }
+  };
+
+  const handleEditRound = (round) => {
+    setEditingRoundId(round._id);
+    setNewRound({ title: round.title, order: round.order, passingMark: round.passingMark, isOpen: round.isOpen });
+  };
+
   const handleEditQuestion = (question) => {
     setEditingQuestionId(question._id);
     setNewQuestion({
+      roundId: question.roundId?._id || question.roundId,
       order: question.order,
       title: question.title,
       description: question.description,
@@ -127,6 +164,18 @@ export const AdminControls = () => {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem' }}>
+      <div className="glass-panel" style={{ padding: '1.5rem', gridColumn: '1 / -1' }}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem' }}><Layers color="#f59e0b" size={20} /> Quiz Rounds</h3>
+        <form onSubmit={handleRoundSubmit} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+          <div className="form-group"><label className="form-label">Round title</label><input className="input-field" value={newRound.title} onChange={(e) => setNewRound({ ...newRound, title: e.target.value })} placeholder="Round 1" required /></div>
+          <div className="form-group"><label className="form-label">Order</label><input type="number" min="1" className="input-field" value={newRound.order} onChange={(e) => setNewRound({ ...newRound, order: e.target.value })} required /></div>
+          <div className="form-group"><label className="form-label">Minimum Pass Mark</label><input type="number" min="0" className="input-field" value={newRound.passingMark} onChange={(e) => setNewRound({ ...newRound, passingMark: e.target.value })} required /></div>
+          <button type="submit" className="btn btn-primary"><PlusCircle size={17} /> {editingRoundId ? 'Save Round' : 'Create Round'}</button>
+        </form>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginTop: '1rem' }}>
+          {rounds.map((round) => <div key={round._id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><span className={`badge ${round.isOpen ? 'badge-green' : 'badge-amber'}`}>R{round.order} · {round.title} · Need {round.passingMark} correct · {round.isOpen ? 'Open' : 'Closed'}</span><button type="button" className="btn btn-secondary" onClick={() => handleEditRound(round)}>Edit</button></div>)}
+        </div>
+      </div>
       {/* Event Controls Panel */}
       <div className="glass-panel" style={{ padding: '1.5rem' }}>
         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -178,6 +227,7 @@ export const AdminControls = () => {
 
         <form onSubmit={handleCreateQuestion}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '1rem' }}>
+            <div className="form-group"><label className="form-label">Round</label><select className="input-field" value={newQuestion.roundId} onChange={(e) => setNewQuestion({ ...newQuestion, roundId: e.target.value })} required><option value="" disabled>Select a round</option>{rounds.map((round) => <option key={round._id} value={round._id}>R{round.order}: {round.title}</option>)}</select></div>
             <div className="form-group">
               <label className="form-label">Order #</label>
               <input
@@ -289,7 +339,7 @@ export const AdminControls = () => {
             {questions.map((question) => (
               <div key={question._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem' }}>
                 <div>
-                  <strong>Q{question.order}: {question.title}</strong>
+                  <strong>R{question.roundId?.order || '?'} / Q{question.order}: {question.title}</strong>
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{question.type} · {question.points} points</div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
