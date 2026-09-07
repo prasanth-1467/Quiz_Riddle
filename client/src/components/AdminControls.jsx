@@ -169,11 +169,11 @@ export const AdminControls = () => {
         <form onSubmit={handleRoundSubmit} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
           <div className="form-group"><label className="form-label">Round title</label><input className="input-field" value={newRound.title} onChange={(e) => setNewRound({ ...newRound, title: e.target.value })} placeholder="Round 1" required /></div>
           <div className="form-group"><label className="form-label">Order</label><input type="number" min="1" className="input-field" value={newRound.order} onChange={(e) => setNewRound({ ...newRound, order: e.target.value })} required /></div>
-          <div className="form-group"><label className="form-label">Minimum Pass Mark</label><input type="number" min="0" className="input-field" value={newRound.passingMark} onChange={(e) => setNewRound({ ...newRound, passingMark: e.target.value })} required /></div>
+          <div className="form-group"><label className="form-label">Passing Mark (points)</label><input type="number" min="0" className="input-field" value={newRound.passingMark} onChange={(e) => setNewRound({ ...newRound, passingMark: e.target.value })} required /></div>
           <button type="submit" className="btn btn-primary"><PlusCircle size={17} /> {editingRoundId ? 'Save Round' : 'Create Round'}</button>
         </form>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginTop: '1rem' }}>
-          {rounds.map((round) => <div key={round._id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><span className={`badge ${round.isOpen ? 'badge-green' : 'badge-amber'}`}>R{round.order} · {round.title} · Need {round.passingMark} correct · {round.isOpen ? 'Open' : 'Closed'}</span><button type="button" className="btn btn-secondary" onClick={() => handleEditRound(round)}>Edit</button></div>)}
+          {rounds.map((round) => <div key={round._id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><span className={`badge ${round.isOpen ? 'badge-green' : 'badge-amber'}`}>R{round.order} · {round.title} · Need {round.passingMark} pts · {round.isOpen ? 'Open' : 'Closed'}</span><button type="button" className="btn btn-secondary" onClick={() => handleEditRound(round)}>Edit</button></div>)}
         </div>
       </div>
       {/* Event Controls Panel */}
