@@ -14,10 +14,11 @@ export const Leaderboard = () => {
   }
 
   const getRankBadge = (index) => {
-    if (index === 0) return <Trophy size={20} color="#f59e0b" />;
-    if (index === 1) return <Medal size={20} color="#94a3b8" />;
-    if (index === 2) return <Medal size={20} color="#b45309" />;
-    return <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>#{index + 1}</span>;
+    const rank = index + 1;
+    if (index === 0) return <><Trophy size={20} color="#f59e0b" /> <span>#{rank}</span></>;
+    if (index === 1) return <><Medal size={20} color="#94a3b8" /> <span>#{rank}</span></>;
+    if (index === 2) return <><Medal size={20} color="#b45309" /> <span>#{rank}</span></>;
+    return <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>#{rank}</span>;
   };
 
   return (

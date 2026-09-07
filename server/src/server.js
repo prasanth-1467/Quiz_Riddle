@@ -4,12 +4,15 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
+import Question from './models/Question.js';
+import Round from './models/Round.js';
 
 import authRoutes from './routes/authRoutes.js';
 import teamRoutes from './routes/teamRoutes.js';
 import questionRoutes from './routes/questionRoutes.js';
 import submissionRoutes from './routes/submissionRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import roundRoutes from './routes/roundRoutes.js';
 
 dotenv.config();
 
@@ -38,6 +41,7 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/rounds', roundRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -60,7 +64,21 @@ io.on('connection', (socket) => {
 // Connect Database & Start Server
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
+connectDB().then(async () => {
+  const defaultRound = await Round.findOneAndUpdate(
+    { order: 1 },
+    { $setOnInsert: { order: 1, title: 'Round 1', passingMark: 1, isOpen: true } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+  const legacyRounds = await Round.find({ passingPercentage: { $exists: true } });
+  for (const round of legacyRounds) {
+    const questionCount = await Question.countDocuments({ roundId: round._id });
+    round.passingMark = Math.ceil((questionCount * round.passingPercentage) / 100) || 1;
+    round.passingPercentage = undefined;
+    await round.save();
+  }
+  await Question.updateMany({ roundId: { $exists: false } }, { $set: { roundId: defaultRound._id } });
+  await Question.syncIndexes();
   server.listen(PORT, () => {
     console.log(`🚀 [Server] EnigmaGrid Backend listening on port ${PORT}`);
   });

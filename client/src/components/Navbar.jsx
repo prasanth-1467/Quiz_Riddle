@@ -23,12 +23,14 @@ export const Navbar = ({ activeTab, setActiveTab }) => {
 
         {user && (
           <nav style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button
-              className={`btn ${activeTab === 'arena' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setActiveTab('arena')}
-            >
-              <Award size={18} /> Arena
-            </button>
+            {user.role !== 'ADMIN' && (
+              <button
+                className={`btn ${activeTab === 'arena' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActiveTab('arena')}
+              >
+                <Award size={18} /> Arena
+              </button>
+            )}
 
             {!user.teamId && user.role !== 'ADMIN' && (
               <button

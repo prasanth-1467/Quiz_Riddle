@@ -24,8 +24,7 @@ export const useLeaderboard = () => {
     if (!socket) return;
 
     const handleLeaderboardUpdate = (updatedData) => {
-      console.log('[Socket Event] leaderboard:update received:', updatedData);
-      setLeaderboard(updatedData);
+      if (updatedData) fetchLeaderboard();
     };
 
     socket.on('leaderboard:update', handleLeaderboardUpdate);

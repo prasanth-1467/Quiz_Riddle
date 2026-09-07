@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import AdminControls from '../components/AdminControls';
+import Leaderboard from '../components/Leaderboard';
 import { Shield, ClipboardList, RefreshCw } from 'lucide-react';
+import { SocketContext } from '../context/SocketContext';
 
 export const AdminDashboardPage = () => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [teams, setTeams] = useState([]);
+  const { socket } = useContext(SocketContext);
 
   const fetchSubmissions = async () => {
     try {
@@ -18,9 +22,42 @@ export const AdminDashboardPage = () => {
     }
   };
 
+  const fetchTeams = async () => {
+    try {
+      const res = await axios.get('/api/admin/teams');
+      setTeams(res.data.teams || []);
+    } catch (err) {
+      console.error('Error fetching teams', err);
+    }
+  };
+
   useEffect(() => {
     fetchSubmissions();
+    fetchTeams();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const refreshAdminData = () => {
+      fetchSubmissions();
+      fetchTeams();
+    };
+    socket.on('submission:new', refreshAdminData);
+    socket.on('team:update', refreshAdminData);
+    return () => {
+      socket.off('submission:new', refreshAdminData);
+      socket.off('team:update', refreshAdminData);
+    };
+  }, [socket]);
+
+  const resetTeamProgress = async (teamId) => {
+    try {
+      await axios.put(`/api/admin/teams/${teamId}/reset`);
+      await fetchTeams();
+    } catch (error) {
+      console.error('Error resetting team progress', error);
+    }
+  };
 
   return (
     <div className="container">
@@ -33,12 +70,28 @@ export const AdminDashboardPage = () => {
             Manage round access, publish quiz/riddle questions, and audit live submission feeds.
           </p>
         </div>
-        <button className="btn btn-secondary" onClick={fetchSubmissions}>
+        <button className="btn btn-secondary" onClick={() => { fetchSubmissions(); fetchTeams(); }}>
           <RefreshCw size={16} /> Refresh Feed
         </button>
       </div>
 
       <AdminControls />
+
+      <div style={{ marginTop: '2rem' }}>
+        <Leaderboard />
+      </div>
+
+      <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '2rem' }}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem' }}>Team Progress</h3>
+        {teams.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>No teams created yet.</p> : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+              <thead><tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}><th style={{ padding: '0.75rem 1rem' }}>Team</th><th style={{ padding: '0.75rem 1rem' }}>Current Position</th><th style={{ padding: '0.75rem 1rem' }}>Round Progress</th><th style={{ padding: '0.75rem 1rem' }}>Score</th><th style={{ padding: '0.75rem 1rem' }}>Actions</th></tr></thead>
+              <tbody>{teams.map((team) => <tr key={team._id} style={{ borderBottom: '1px solid var(--border-color)' }}><td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{team.name}<div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{team.members?.length || 0} members · {team.code}</div></td><td style={{ padding: '0.75rem 1rem' }}>Round {team.currentRoundOrder} / Q{team.currentQuestionOrder}</td><td style={{ padding: '0.75rem 1rem' }}><div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>{team.roundProgress?.map((round) => <span key={round.roundId} className={`badge ${round.passed ? 'badge-green' : 'badge-amber'}`}>R{round.order}: {round.earnedPoints}/{round.passingMark} pts · {round.correctQuestions}/{round.totalQuestions} correct {round.passed ? '· PASSED' : ''}</span>)}</div></td><td style={{ padding: '0.75rem 1rem' }}>{team.score} pts</td><td style={{ padding: '0.75rem 1rem' }}><button type="button" className="btn btn-secondary" onClick={() => resetTeamProgress(team._id)}>Reset Progress</button></td></tr>)}</tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Submissions Audit Log */}
       <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '2rem' }}>

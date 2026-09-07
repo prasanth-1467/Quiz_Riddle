@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { ToggleLeft, ToggleRight, PlusCircle, RefreshCw, Layers } from 'lucide-react';
+import { SocketContext } from '../context/SocketContext';
 
 export const AdminControls = () => {
   const [eventState, setEventState] = useState({ isRoundOpen: true, isLeaderboardFrozen: false });
   const [loading, setLoading] = useState(true);
   const [newQuestion, setNewQuestion] = useState({
+    roundId: '',
     order: 1,
     title: '',
     description: '',
@@ -15,6 +17,12 @@ export const AdminControls = () => {
     points: 10,
   });
   const [msg, setMsg] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [rounds, setRounds] = useState([]);
+  const [newRound, setNewRound] = useState({ title: '', order: 1, passingMark: 1, isOpen: true });
+  const [editingRoundId, setEditingRoundId] = useState(null);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const { socket } = useContext(SocketContext);
 
   const fetchState = async () => {
     try {
@@ -29,7 +37,35 @@ export const AdminControls = () => {
 
   useEffect(() => {
     fetchState();
+    fetchQuestions();
+    fetchRounds();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const handleStateUpdate = (updatedState) => setEventState(updatedState);
+    socket.on('eventState:update', handleStateUpdate);
+    return () => socket.off('eventState:update', handleStateUpdate);
+  }, [socket]);
+
+  const fetchQuestions = async () => {
+    try {
+      const res = await axios.get('/api/questions');
+      setQuestions(res.data.questions || []);
+    } catch (error) {
+      console.error('Error loading questions', error);
+    }
+  };
+
+  const fetchRounds = async () => {
+    try {
+      const res = await axios.get('/api/rounds');
+      setRounds(res.data.rounds || []);
+      if (res.data.rounds?.[0]) setNewQuestion((current) => ({ ...current, roundId: current.roundId || res.data.rounds[0]._id }));
+    } catch (error) {
+      console.error('Error loading rounds', error);
+    }
+  };
 
   const handleToggleState = async (field, currentValue) => {
     try {
@@ -49,16 +85,24 @@ export const AdminControls = () => {
         ? newQuestion.options.split(',').map((opt) => opt.trim())
         : [];
 
-      await axios.post('/api/questions', {
+      const questionData = {
         ...newQuestion,
         order: Number(newQuestion.order),
         points: Number(newQuestion.points),
         options: formattedOptions,
-      });
+      };
+      if (editingQuestionId) {
+        await axios.put(`/api/questions/${editingQuestionId}`, questionData);
+      } else {
+        await axios.post('/api/questions', questionData);
+      }
 
-      setMsg('✅ Question created successfully!');
+      setMsg(editingQuestionId ? 'Question updated successfully!' : 'Question created successfully!');
+      setEditingQuestionId(null);
+      await fetchQuestions();
       setNewQuestion({
-        order: newQuestion.order + 1,
+        roundId: newQuestion.roundId,
+        order: Number(newQuestion.order) + 1,
         title: '',
         description: '',
         type: 'RIDDLE',
@@ -71,10 +115,67 @@ export const AdminControls = () => {
     }
   };
 
+  const handleRoundSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const data = { ...newRound, order: Number(newRound.order), passingMark: Number(newRound.passingMark) };
+      if (editingRoundId) await axios.put(`/api/rounds/${editingRoundId}`, data);
+      else await axios.post('/api/rounds', data);
+      setMsg(editingRoundId ? 'Round updated successfully!' : 'Round created successfully!');
+      setEditingRoundId(null);
+      setNewRound({ title: '', order: rounds.length + 1, passingMark: 1, isOpen: true });
+      await fetchRounds();
+    } catch (error) {
+      setMsg(error.response?.data?.message || 'Error saving round');
+    }
+  };
+
+  const handleEditRound = (round) => {
+    setEditingRoundId(round._id);
+    setNewRound({ title: round.title, order: round.order, passingMark: round.passingMark, isOpen: round.isOpen });
+  };
+
+  const handleEditQuestion = (question) => {
+    setEditingQuestionId(question._id);
+    setNewQuestion({
+      roundId: question.roundId?._id || question.roundId,
+      order: question.order,
+      title: question.title,
+      description: question.description,
+      type: question.type,
+      options: question.options?.join(', ') || '',
+      correctAnswer: question.correctAnswer,
+      points: question.points,
+    });
+    setMsg('Editing selected question');
+  };
+
+  const handleDeleteQuestion = async (questionId) => {
+    try {
+      await axios.delete(`/api/questions/${questionId}`);
+      setQuestions((currentQuestions) => currentQuestions.filter((question) => question._id !== questionId));
+      setMsg('Question deleted successfully!');
+    } catch (error) {
+      setMsg(`Error deleting question: ${error.response?.data?.message || 'Request failed'}`);
+    }
+  };
+
   if (loading) return <div className="glass-panel" style={{ padding: '2rem' }}>Loading controls...</div>;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.5rem' }}>
+      <div className="glass-panel" style={{ padding: '1.5rem', gridColumn: '1 / -1' }}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem' }}><Layers color="#f59e0b" size={20} /> Quiz Rounds</h3>
+        <form onSubmit={handleRoundSubmit} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+          <div className="form-group"><label className="form-label">Round title</label><input className="input-field" value={newRound.title} onChange={(e) => setNewRound({ ...newRound, title: e.target.value })} placeholder="Round 1" required /></div>
+          <div className="form-group"><label className="form-label">Order</label><input type="number" min="1" className="input-field" value={newRound.order} onChange={(e) => setNewRound({ ...newRound, order: e.target.value })} required /></div>
+          <div className="form-group"><label className="form-label">Passing Mark (points)</label><input type="number" min="0" className="input-field" value={newRound.passingMark} onChange={(e) => setNewRound({ ...newRound, passingMark: e.target.value })} required /></div>
+          <button type="submit" className="btn btn-primary"><PlusCircle size={17} /> {editingRoundId ? 'Save Round' : 'Create Round'}</button>
+        </form>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginTop: '1rem' }}>
+          {rounds.map((round) => <div key={round._id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}><span className={`badge ${round.isOpen ? 'badge-green' : 'badge-amber'}`}>R{round.order} · {round.title} · Need {round.passingMark} pts · {round.isOpen ? 'Open' : 'Closed'}</span><button type="button" className="btn btn-secondary" onClick={() => handleEditRound(round)}>Edit</button></div>)}
+        </div>
+      </div>
       {/* Event Controls Panel */}
       <div className="glass-panel" style={{ padding: '1.5rem' }}>
         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -119,13 +220,14 @@ export const AdminControls = () => {
       {/* Question Creation Form */}
       <div className="glass-panel" style={{ padding: '1.5rem' }}>
         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <PlusCircle color="#10b981" size={20} /> Add New Question
+          <PlusCircle color="#10b981" size={20} /> {editingQuestionId ? 'Edit Question' : 'Add New Question'}
         </h3>
 
         {msg && <p style={{ marginBottom: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>{msg}</p>}
 
         <form onSubmit={handleCreateQuestion}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '1rem' }}>
+            <div className="form-group"><label className="form-label">Round</label><select className="input-field" value={newQuestion.roundId} onChange={(e) => setNewQuestion({ ...newQuestion, roundId: e.target.value })} required><option value="" disabled>Select a round</option>{rounds.map((round) => <option key={round._id} value={round._id}>R{round.order}: {round.title}</option>)}</select></div>
             <div className="form-group">
               <label className="form-label">Order #</label>
               <input
@@ -210,9 +312,44 @@ export const AdminControls = () => {
           )}
 
           <button type="submit" className="btn btn-primary">
-            Publish Question
+            {editingQuestionId ? 'Save Question' : 'Publish Question'}
           </button>
+          {editingQuestionId && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginLeft: '0.75rem' }}
+              onClick={() => {
+                setEditingQuestionId(null);
+                setMsg('');
+              }}
+            >
+              Cancel
+            </button>
+          )}
         </form>
+      </div>
+
+      <div className="glass-panel" style={{ padding: '1.5rem', gridColumn: '1 / -1' }}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem' }}>Question Bank</h3>
+        {questions.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)' }}>No questions created yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {questions.map((question) => (
+              <div key={question._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 1rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem' }}>
+                <div>
+                  <strong>R{question.roundId?.order || '?'} / Q{question.order}: {question.title}</strong>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{question.type} · {question.points} points</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => handleEditQuestion(question)}>Edit</button>
+                  <button type="button" className="btn btn-secondary" onClick={() => handleDeleteQuestion(question._id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

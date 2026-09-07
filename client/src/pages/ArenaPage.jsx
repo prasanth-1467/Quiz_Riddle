@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
+import { SocketContext } from '../context/SocketContext';
 import QuestionCard from '../components/QuestionCard';
 import SubmissionForm from '../components/SubmissionForm';
 import Leaderboard from '../components/Leaderboard';
-import { ShieldAlert, Users, Award, Hash, Zap } from 'lucide-react';
+import { ShieldAlert, Users, Award, Hash, Zap, ArrowLeft } from 'lucide-react';
 
-export const ArenaPage = () => {
+export const ArenaPage = ({ onBack }) => {
   const { user } = useContext(AuthContext);
+  const { socket, eventState } = useContext(SocketContext);
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [teamDetails, setTeamDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,16 @@ export const ArenaPage = () => {
     fetchTeamDetails();
   }, [user]);
 
+  useEffect(() => {
+    if (!socket || !user?.teamId) return undefined;
+    const teamId = typeof user.teamId === 'object' ? user.teamId._id : user.teamId;
+    const handleQuestionUnlock = (data) => {
+      if (String(data.teamId) === String(teamId)) fetchTeamDetails();
+    };
+    socket.on('question:unlock', handleQuestionUnlock);
+    return () => socket.off('question:unlock', handleQuestionUnlock);
+  }, [socket, user]);
+
   const handleSubmissionSuccess = (data) => {
     if (data.currentQuestionOrder) {
       fetchCurrentQuestion(data.currentQuestionOrder);
@@ -80,6 +92,9 @@ export const ArenaPage = () => {
 
   return (
     <div className="container">
+      <button type="button" className="btn btn-secondary" onClick={onBack} style={{ marginBottom: '1rem' }}>
+        <ArrowLeft size={18} /> Back
+      </button>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', alignItems: 'start' }}>
         {/* Main Arena Section */}
         <div>
@@ -92,6 +107,11 @@ export const ArenaPage = () => {
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Team Code: <code style={{ color: 'var(--secondary-accent)', fontFamily: 'var(--font-mono)' }}>{teamDetails.code}</code>
                   </div>
+                  {teamDetails.teammateNames?.length > 0 && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                      Teammates: {teamDetails.teammateNames.join(', ')}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -114,8 +134,14 @@ export const ArenaPage = () => {
             </div>
           )}
 
+          {eventState && (
+            <div style={{ marginBottom: '1rem', color: eventState.isRoundOpen ? '#34d399' : '#fbbf24', fontSize: '0.9rem' }}>
+              Round: {eventState.isRoundOpen ? 'Open' : 'Closed'}
+            </div>
+          )}
+
           <QuestionCard question={currentQuestion} />
-          <SubmissionForm question={currentQuestion} onSubmissionSuccess={handleSubmissionSuccess} />
+          <SubmissionForm question={currentQuestion} onSubmissionSuccess={handleSubmissionSuccess} isRoundOpen={eventState?.isRoundOpen ?? true} />
         </div>
 
         {/* Real-Time Leaderboard Sidebar */}

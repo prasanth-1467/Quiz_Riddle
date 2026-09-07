@@ -5,8 +5,22 @@ import User from '../models/User.js';
 export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    if (typeof email !== 'string' || email.trim() !== email.trim().toLowerCase()) {
+      return res.status(400).json({ message: 'Email address must contain only lowercase letters' });
+    }
+
+    if (!emailPattern.test(normalizedEmail)) {
+      return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+
+    if (!['PARTICIPANT', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ message: 'Please select a valid account role' });
+    }
     
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail }).select('_id');
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
@@ -16,9 +30,9 @@ export const register = async (req, res) => {
 
     const user = await User.create({
       name,
-      email,
+      email: normalizedEmail,
       passwordHash,
-      role: role || 'PARTICIPANT',
+      role,
     });
 
     const token = jwt.sign(
@@ -39,6 +53,9 @@ export const register = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.email) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
     res.status(500).json({ message: 'Server error during registration', error: error.message });
   }
 };

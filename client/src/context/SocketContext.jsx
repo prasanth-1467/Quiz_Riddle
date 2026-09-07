@@ -6,10 +6,11 @@ export const SocketContext = createContext();
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [eventState, setEventState] = useState(null);
 
   useEffect(() => {
     // Initialize socket connection to backend URL or default proxy origin
-    const newSocket = io('http://localhost:5000', {
+    const newSocket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
       autoConnect: true,
       transports: ['websocket', 'polling'],
     });
@@ -24,6 +25,8 @@ export const SocketProvider = ({ children }) => {
       setIsConnected(false);
     });
 
+    newSocket.on('eventState:update', setEventState);
+
     setSocket(newSocket);
 
     return () => {
@@ -32,7 +35,7 @@ export const SocketProvider = ({ children }) => {
   }, []);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
+    <SocketContext.Provider value={{ socket, isConnected, eventState }}>
       {children}
     </SocketContext.Provider>
   );
